@@ -503,15 +503,15 @@ trait FusionRenderingTrait
      *
      * Use this step after "I have the following nodes in site" to express node references.
      *
-     * Supported columns: NodeAggregateId, ReferenceName, Targets (comma-separated NodeAggregateIds), Language
+     * Supported columns: NodeAggregateId, ReferenceName, Targets (comma-separated NodeAggregateIds), DimensionSpacePoint
      */
     #[Given("the following node references:")]
     public function iSetTheFollowingNodeReferencesInSite(TableNode $table): void
     {
         foreach ($table->getHash() as $row) {
-            $language = !empty($row['Language']) ? $row['Language'] : null;
-            $dimensionSpacePoint = $language !== null
-                ? DimensionSpacePoint::fromArray(['language' => $language])
+            $dimensionSpacePointJson = !empty($row['DimensionSpacePoint']) ? $row['DimensionSpacePoint'] : null;
+            $dimensionSpacePoint = $dimensionSpacePointJson !== null
+                ? DimensionSpacePoint::fromArray(json_decode($dimensionSpacePointJson, associative: true))
                 : DimensionSpacePoint::fromArray([]);
 
             $targetIds = array_map(
