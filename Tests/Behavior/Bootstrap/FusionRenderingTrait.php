@@ -22,7 +22,6 @@ use Neos\ContentRepository\Core\Feature\NodeReferencing\Command\SetNodeReference
 use Neos\ContentRepository\Core\Feature\NodeReferencing\Dto\NodeReferencesForName;
 use Neos\ContentRepository\Core\Feature\NodeReferencing\Dto\NodeReferencesToWrite;
 use Neos\ContentRepository\Core\Feature\RootNodeCreation\Command\CreateRootNodeAggregateWithNode;
-use Neos\ContentRepository\Core\Feature\WorkspaceCreation\Command\CreateRootWorkspace;
 use Neos\ContentRepository\Core\Infrastructure\Property\PropertyConverter;
 use Neos\ContentRepository\Core\NodeType\NodeTypeName;
 use Neos\ContentRepository\Core\Service\ContentRepositoryMaintainerFactory;
@@ -31,7 +30,6 @@ use Neos\ContentRepository\Core\SharedModel\Node\NodeAggregateId;
 use Neos\ContentRepository\Core\SharedModel\Node\NodeAggregateIds;
 use Neos\ContentRepository\Core\SharedModel\Node\NodeName;
 use Neos\ContentRepository\Core\SharedModel\Node\ReferenceName;
-use Neos\ContentRepository\Core\SharedModel\Workspace\ContentStreamId;
 use Neos\ContentRepository\Core\SharedModel\Workspace\WorkspaceName;
 use Neos\ContentRepositoryRegistry\ContentRepositoryRegistry;
 use Neos\Flow\Cache\CacheManager;
@@ -46,7 +44,12 @@ use Neos\Flow\ObjectManagement\ObjectManagerInterface;
 use Neos\Flow\Persistence\PersistenceManagerInterface;
 use Neos\Fusion\Core\Runtime;
 use Neos\Neos\Domain\Model\Site;
+use Neos\Neos\Domain\Model\WorkspaceDescription;
+use Neos\Neos\Domain\Model\WorkspaceRoleAssignments;
+use Neos\Neos\Domain\Model\WorkspaceTitle;
 use Neos\Neos\Domain\Repository\SiteRepository;
+use Neos\Neos\Domain\Repository\WorkspaceMetadataAndRoleRepository;
+use Neos\Neos\Domain\Service\WorkspaceService;
 use Neos\Utility\Files;
 use PHPUnit\Framework\Assert;
 use Sandstorm\E2ETestTools\FusionServiceForTesting;
@@ -142,6 +145,9 @@ trait FusionRenderingTrait
         if ($pruneError !== null) {
             throw new \RuntimeException('CR prune failed: ' . $pruneError->getMessage());
         }
+        $workspaceMetadataAndRoleRepository = $this->getObjectManager()->get(WorkspaceMetadataAndRoleRepository::class);
+        $workspaceMetadataAndRoleRepository->pruneWorkspaceMetadata($crId);
+        $workspaceMetadataAndRoleRepository->pruneRoleAssignments($crId);
 
         $this->contentRepository = $registry->get($crId);
 
@@ -156,10 +162,16 @@ trait FusionRenderingTrait
             }
         )->converter;
 
-        $this->contentRepository->handle(CreateRootWorkspace::create(
-            WorkspaceName::forLive(),
-            ContentStreamId::create()
-        ));
+        $liveWorkspace = $this->contentRepository->findWorkspaceByName(WorkspaceName::forLive());
+        if ($liveWorkspace === null) {
+            $this->getObjectManager()->get(WorkspaceService::class)->createRootWorkspace(
+                $crId,
+                WorkspaceName::forLive(),
+                WorkspaceTitle::fromString('live'),
+                WorkspaceDescription::createEmpty(),
+                WorkspaceRoleAssignments::createForLiveWorkspace()
+            );
+        }
 
         $this->sitesNodeAggregateId = NodeAggregateId::fromString('sites');
         $this->contentRepository->handle(CreateRootNodeAggregateWithNode::create(
